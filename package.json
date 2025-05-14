@@ -1,0 +1,152 @@
+{
+  "name": "koder",
+  "displayName": "KODER",
+  "description": "Advanced pair programmer with unlimited codebase memory",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "koder-sidebar",
+          "title": "KODER",
+          "icon": "assets/icons/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "koder-sidebar": [
+        {
+          "type": "webview",
+          "id": "koder.autoApprovalSettings",
+          "name": "Auto-Approval Settings"
+        },
+        {
+          "type": "webview",
+          "id": "koder.llmSettings",
+          "name": "LLM Provider Settings"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "koder.start",
+        "title": "KODER: Start Pair Programming"
+      },
+      {
+        "command": "koder.indexWorkspace",
+        "title": "KODER: Index Workspace"
+      },
+      {
+        "command": "koder.ask",
+        "title": "KODER: Ask a Question"
+      },
+      {
+        "command": "koder.executeCommand",
+        "title": "KODER: Execute Terminal Command"
+      },
+      {
+        "command": "koder.addTerminalOutputToChat",
+        "title": "KODER: Add Terminal Output to Chat"
+      },
+      {
+        "command": "koder.openAutoApprovalSettings",
+        "title": "KODER: Open Auto-Approval Settings"
+      },
+      {
+        "command": "koder.openLLMSettings",
+        "title": "KODER: Open LLM Provider Settings"
+      },
+      {
+        "command": "koder.selectLLMProvider",
+        "title": "KODER: Select LLM Provider"
+      },
+      {
+        "command": "koder.testLLMConnection",
+        "title": "KODER: Test LLM Connection"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "koder.ask",
+          "when": "editorHasSelection",
+          "group": "navigation"
+        }
+      ],
+      "terminal/context": [
+        {
+          "command": "koder.addTerminalOutputToChat",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "KODER",
+      "properties": {
+        "koder.enableAutocomplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable code autocompletion"
+        },
+        "koder.memoryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to memory storage (leave empty for default)"
+        },
+        "koder.preferLocalLLM": {
+          "type": "boolean",
+          "default": false,
+          "description": "Prefer local LLMs over cloud services when available"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^6.19.1",
+    "@typescript-eslint/parser": "^6.19.1",
+    "eslint": "^8.56.0",
+    "glob": "^10.3.10",
+    "mocha": "^10.2.0",
+    "typescript": "^5.3.3",
+    "ts-loader": "^9.5.1",
+    "webpack": "^5.90.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "@azure/storage-blob": "^12.17.0",
+    "@azure/cosmos": "^4.0.0",
+    "@azure/openai": "^1.0.0",
+    "dotenv": "^16.0.0",
+    "axios": "^1.6.0",
+    "chokidar": "^3.5.0",
+    "sqlite3": "^5.1.0",
+    "vscode-languageclient": "^8.0.0"
+  }
+}
