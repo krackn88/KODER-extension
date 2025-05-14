@@ -9,6 +9,8 @@ import { VSCodeIntegration } from './vscode/integration';
 import { DiffViewProvider, DIFF_VIEW_URI_SCHEME } from './integrations/editor/diff-view-provider';
 import { AutoApprovalSettingsProvider } from './webviews/auto-approval-settings';
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from './core/auto-approval';
+import { LLMSettingsViewProvider, LLMSettingsManager } from './webviews/llm-settings';
+import { LLMService } from './services/llm-service';
 
 // Load environment variables
 dotenv.config();
@@ -24,6 +26,9 @@ export async function activate(context: vscode.ExtensionContext) {
   }
   
   try {
+    // Initialize LLM service
+    const llmService = new LLMService(context);
+    
     // Initialize services
     const azureClient = new AzureClient();
     const memoryManager = new MemoryManager(azureClient);
@@ -49,6 +54,19 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.window.registerWebviewViewProvider(
         AutoApprovalSettingsProvider.viewType,
         autoApprovalSettingsProvider
+      )
+    );
+    
+    // Register the LLM settings webview
+    const llmSettingsManager = new LLMSettingsManager(context);
+    const llmSettingsViewProvider = new LLMSettingsViewProvider(
+      context.extensionUri,
+      llmSettingsManager
+    );
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        LLMSettingsViewProvider.viewType,
+        llmSettingsViewProvider
       )
     );
 
@@ -179,6 +197,27 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.commands.registerCommand('koder.openAutoApprovalSettings', async () => {
         vscode.commands.executeCommand('workbench.view.extension.koder-auto-approval-settings');
+      })
+    );
+    
+    // Register command to open LLM settings
+    context.subscriptions.push(
+      vscode.commands.registerCommand('koder.openLLMSettings', async () => {
+        vscode.commands.executeCommand('workbench.view.extension.koder-llm-settings');
+      })
+    );
+    
+    // Register command to test LLM connection
+    context.subscriptions.push(
+      vscode.commands.registerCommand('koder.testLLMConnection', async () => {
+        vscode.window.withProgress({
+          location: vscode.ProgressLocation.Notification,
+          title: "Testing LLM connection...",
+          cancellable: false
+        }, async (progress) => {
+          const result = await llmService.testConnection();
+          vscode.window.showInformationMessage(result);
+        });
       })
     );
 
