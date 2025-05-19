@@ -11,6 +11,8 @@ import { AutoApprovalSettingsProvider } from './webviews/auto-approval-settings'
 import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from './core/auto-approval';
 import { LLMSettingsViewProvider, LLMSettingsManager } from './webviews/llm-settings';
 import { LLMService } from './services/llm-service';
+import { VectorSettingsViewProvider } from './webviews/vector-settings';
+import { VectorService, VectorServiceConfig, DEFAULT_VECTOR_SERVICE_CONFIG } from './services/vector-service';
 
 // Load environment variables
 dotenv.config();
@@ -25,9 +27,19 @@ export async function activate(context: vscode.ExtensionContext) {
     await context.globalState.update('autoApprovalSettings', DEFAULT_AUTO_APPROVAL_SETTINGS);
   }
   
+  // Initialize vector service settings if they don't exist
+  if (!context.globalState.get<VectorServiceConfig>('vectorServiceConfig')) {
+    await context.globalState.update('vectorServiceConfig', DEFAULT_VECTOR_SERVICE_CONFIG);
+  }
+  
   try {
     // Initialize LLM service
     const llmService = new LLMService(context);
+    
+    // Initialize vector service
+    const vectorServiceConfig = context.globalState.get<VectorServiceConfig>('vectorServiceConfig') 
+      || DEFAULT_VECTOR_SERVICE_CONFIG;
+    const vectorService = new VectorService(context, llmService, vectorServiceConfig);
     
     // Initialize services
     const azureClient = new AzureClient();
@@ -67,6 +79,19 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.window.registerWebviewViewProvider(
         LLMSettingsViewProvider.viewType,
         llmSettingsViewProvider
+      )
+    );
+    
+    // Register the vector settings webview
+    const vectorSettingsViewProvider = new VectorSettingsViewProvider(
+      context.extensionUri,
+      context,
+      vectorService
+    );
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        VectorSettingsViewProvider.viewType,
+        vectorSettingsViewProvider
       )
     );
 
@@ -196,14 +221,16 @@ export async function activate(context: vscode.ExtensionContext) {
     // Register command to open auto-approval settings
     context.subscriptions.push(
       vscode.commands.registerCommand('koder.openAutoApprovalSettings', async () => {
-        vscode.commands.executeCommand('workbench.view.extension.koder-auto-approval-settings');
+        vscode.commands.executeCommand('workbench.view.extension.koder-sidebar');
+        vscode.commands.executeCommand('koder.autoApprovalSettings.focus');
       })
     );
     
     // Register command to open LLM settings
     context.subscriptions.push(
       vscode.commands.registerCommand('koder.openLLMSettings', async () => {
-        vscode.commands.executeCommand('workbench.view.extension.koder-llm-settings');
+        vscode.commands.executeCommand('workbench.view.extension.koder-sidebar');
+        vscode.commands.executeCommand('koder.llmSettings.focus');
       })
     );
     
@@ -218,6 +245,123 @@ export async function activate(context: vscode.ExtensionContext) {
           const result = await llmService.testConnection();
           vscode.window.showInformationMessage(result);
         });
+      })
+    );
+    
+    // Register vector service commands
+    
+    // Embed current document
+    context.subscriptions.push(
+      vscode.commands.registerCommand('koder.embedCurrentDocument', async () => {
+        const document = vscode.window.activeTextEditor?.document;
+        if (!document) {
+          vscode.window.showErrorMessage('No active document to embed');
+          return;
+        }
+        
+        try {
+          await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: 'Embedding document...',
+            cancellable: false
+          }, async () => {
+            await vectorService.embedDocument(document);
+            vscode.window.showInformationMessage('Document embedded successfully');
+          });
+        } catch (error) {
+          vscode.window.showErrorMessage(`Error embedding document: ${error}`);
+        }
+      })
+    );
+    
+    // Embed workspace
+    context.subscriptions.push(
+      vscode.commands.registerCommand('koder.embedWorkspace', async () => {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+          vscode.window.showErrorMessage('No workspace folder is open');
+          return;
+        }
+        
+        try {
+          await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: 'Embedding workspace...',
+            cancellable: true
+          }, async (progress, token) => {
+            await vectorService.embedWorkspace(workspaceFolders[0].uri.fsPath, progress, token);
+            vscode.window.showInformationMessage('Workspace embedded successfully');
+          });
+        } catch (error) {
+          vscode.window.showErrorMessage(`Error embedding workspace: ${error}`);
+        }
+      })
+    );
+    
+    // Search for similar code
+    context.subscriptions.push(
+      vscode.commands.registerCommand('koder.searchSimilarCode', async () => {
+        const document = vscode.window.activeTextEditor?.document;
+        if (!document) {
+          vscode.window.showErrorMessage('No active document to search');
+          return;
+        }
+        
+        const selection = vscode.window.activeTextEditor?.selection;
+        if (!selection || selection.isEmpty) {
+          vscode.window.showErrorMessage('Please select some code to search for similar code');
+          return;
+        }
+        
+        const selectedText = document.getText(selection);
+        
+        try {
+          await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: 'Searching for similar code...',
+            cancellable: false
+          }, async () => {
+            const results = await vectorService.searchSimilarCode(selectedText);
+            
+            if (results.length === 0) {
+              vscode.window.showInformationMessage('No similar code found');
+              return;
+            }
+            
+            // Show results in quick pick
+            const items = results.map(result => ({
+              label: `${path.basename(result.metadata.path)} (${result.similarity.toFixed(2)})`,
+              description: `Line ${result.metadata.startLine}-${result.metadata.endLine}`,
+              detail: result.metadata.text.substring(0, 100) + '...',
+              result
+            }));
+            
+            const selected = await vscode.window.showQuickPick(items, {
+              placeHolder: 'Select a result to open',
+              matchOnDescription: true,
+              matchOnDetail: true
+            });
+            
+            if (selected) {
+              // Open the file at the correct position
+              const doc = await vscode.workspace.openTextDocument(selected.result.metadata.path);
+              const editor = await vscode.window.showTextDocument(doc);
+              
+              // Create selection at the matching code
+              const startPos = new vscode.Position(selected.result.metadata.startLine, 0);
+              const endPos = new vscode.Position(selected.result.metadata.endLine, 0);
+              editor.selection = new vscode.Selection(startPos, endPos);
+              
+              // Scroll to the selection
+              editor.revealRange(
+                new vscode.Range(startPos, endPos),
+                vscode.TextEditorRevealType.InCenter
+              );
+            }
+          });
+        } catch (error) {
+          vscode.window.showErrorMessage(`Error searching for similar code: ${error}`);
+        }
       })
     );
 
