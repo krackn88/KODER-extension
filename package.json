@@ -36,6 +36,11 @@
           "type": "webview",
           "id": "koder.llmSettings",
           "name": "LLM Provider Settings"
+        },
+        {
+          "type": "webview",
+          "id": "koder.vectorSettings",
+          "name": "Vector Database Settings"
         }
       ]
     },
@@ -75,12 +80,29 @@
       {
         "command": "koder.testLLMConnection",
         "title": "KODER: Test LLM Connection"
+      },
+      {
+        "command": "koder.embedCurrentDocument",
+        "title": "KODER: Embed Current Document"
+      },
+      {
+        "command": "koder.embedWorkspace",
+        "title": "KODER: Embed Workspace for Semantic Search"
+      },
+      {
+        "command": "koder.searchSimilarCode",
+        "title": "KODER: Find Similar Code"
       }
     ],
     "menus": {
       "editor/context": [
         {
           "command": "koder.ask",
+          "when": "editorHasSelection",
+          "group": "navigation"
+        },
+        {
+          "command": "koder.searchSimilarCode",
           "when": "editorHasSelection",
           "group": "navigation"
         }
@@ -109,6 +131,11 @@
           "type": "boolean",
           "default": false,
           "description": "Prefer local LLMs over cloud services when available"
+        },
+        "koder.enableAutoEmbedding": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic code embedding for semantic search"
         }
       }
     }
